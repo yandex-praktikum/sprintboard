@@ -1,0 +1,31 @@
+openapi: 3.0.3
+info:
+  title: SprintBoard API
+  version: 0.1.0
+  description: Дополните спецификацию по docs/requirements.md. Начните до реализации API.
+servers:
+  - url: http://127.0.0.1:8000
+paths:
+  /api/health/:
+    get:
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: Сервер работает
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

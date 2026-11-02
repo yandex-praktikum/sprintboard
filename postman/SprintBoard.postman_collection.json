@@ -1,0 +1,2798 @@
+{
+  "info": {
+    "name": "SprintBoard — сценарий сервиса",
+    "_postman_id": "779d0892-fc50-40e4-9401-c45ce1c70f2e",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Запускайте целиком через Collection Runner, 1 итерация. Нужен локальный сервер и включённые cookies. Каждый запуск создаёт новых учебных пользователей и проект. Пароль, ID и CSRF хранятся только в переменных текущего запуска. На прекоде без реализации весь сценарий не пройдёт. Инструкция: postman/README.md."
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 — Подготовка пользователей",
+      "description": "Проходит уже на прекоде. Получаем CSRF, завершаем старую сессию и регистрируем трёх новых пользователей.",
+      "item": [
+        {
+          "name": "01. Сервер доступен; подготовить данные запуска",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/health/",
+            "description": "Сервер доступен; подготовить данные запуска"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = pm.variables.replaceIn('{{$guid}}').replace(/-/g, '').slice(0, 16);",
+                  "['marina', 'anton', 'oleg'].forEach(role => pm.variables.set(role + '_username', role + '_' + suffix));",
+                  "pm.variables.set('password', pm.variables.replaceIn('{{$guid}}'));",
+                  "['project_id', 'task_id', 'task_snapshot', 'history_snapshot', 'csrf', 'marina_id', 'anton_id', 'oleg_id'].forEach(key => pm.variables.unset(key));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Сервер отвечает\", () => pm.expect(pm.response.json()).to.deep.equal({status:\"ok\"}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03. Завершить прежнюю сессию, если она была",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/logout/",
+            "description": "Завершить прежнюю сессию, если она была"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204, 401];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04. Зарегистрировать: marina",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register/",
+            "description": "Зарегистрировать: marina",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{marina_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Пользователь создан\", () => pm.expect(pm.response.json().username).to.equal(pm.variables.get(\"marina_username\")));",
+                  "pm.variables.set(\"marina_id\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05. Зарегистрировать: anton",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register/",
+            "description": "Зарегистрировать: anton",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{anton_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Пользователь создан\", () => pm.expect(pm.response.json().username).to.equal(pm.variables.get(\"anton_username\")));",
+                  "pm.variables.set(\"anton_id\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06. Зарегистрировать: oleg",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/register/",
+            "description": "Зарегистрировать: oleg",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{oleg_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Пользователь создан\", () => pm.expect(pm.response.json().username).to.equal(pm.variables.get(\"oleg_username\")));",
+                  "pm.variables.set(\"oleg_id\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 — Марина создаёт проект",
+      "description": "Владелец создаёт и переименовывает проект, добавляет участника. Нужны реализованные проекты и участники.",
+      "item": [
+        {
+          "name": "07. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08. Войти: marina",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login/",
+            "description": "Войти: marina",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{marina_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Вход нужного пользователя\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"marina_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Проверить текущего пользователя: marina",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me/",
+            "description": "Проверить текущего пользователя: marina"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Сессия принадлежит marina\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"marina_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Создать проект",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/",
+            "description": "Создать проект",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Сайт конференции\", \"description\": \"Учебный запуск Postman\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Марина — владелец\", () => pm.expect(pm.response.json().owner_id).to.equal(Number(pm.variables.get(\"marina_id\"))));",
+                  "pm.variables.set(\"project_id\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. Найти проект в списке",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/",
+            "description": "Найти проект в списке"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"В списке только созданный проект\", () => { const b=pm.response.json(); pm.expect(b.count).to.equal(1); pm.expect(b.results[0].id).to.equal(Number(pm.variables.get(\"project_id\"))); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. Прочитать проект",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/",
+            "description": "Прочитать проект"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Проект открыт\", () => pm.expect(pm.response.json().archived).to.equal(false));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14. Изменить описание проекта",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}/",
+            "description": "Изменить описание проекта",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\": \"Подготовка программы конференции\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Описание сохранено\", () => pm.expect(pm.response.json().description).to.equal(\"Подготовка программы конференции\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15. Добавить Антона",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}/members/",
+            "description": "Добавить Антона",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{anton_username}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Антон — участник\", () => pm.expect(pm.response.json().role).to.equal(\"member\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16. Прочитать состав проекта",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/members/",
+            "description": "Прочитать состав проекта"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"В проекте два пользователя\", () => { const b=pm.response.json(); pm.expect(b.count).to.equal(2); pm.expect(b.results.map(x=>x.role)).to.have.members([\"owner\",\"member\"]); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 — Антон работает с задачей",
+      "description": "Создание и изменение задачи, комментарий, переходы статусов, проверка истории и отказов.",
+      "item": [
+        {
+          "name": "17. Выйти из предыдущего аккаунта",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/logout/",
+            "description": "Выйти из предыдущего аккаунта"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Ответ без тела\", () => pm.expect(pm.response.text()).to.equal(\"\"));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "19. Войти: anton",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login/",
+            "description": "Войти: anton",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{anton_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Вход нужного пользователя\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"anton_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "21. Проверить текущего пользователя: anton",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me/",
+            "description": "Проверить текущего пользователя: anton"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Сессия принадлежит anton\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"anton_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "22. Антон не может переименовать проект",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}/",
+            "description": "Антон не может переименовать проект",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Чужое название\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [403];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"forbidden\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "23. Создать задачу",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}/tasks/",
+            "description": "Создать задачу",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Добавить программу выступлений\", \"description\": \"Список докладов по дням\", \"assignee_id\": {{anton_id}}, \"priority\": \"high\", \"due_date\": \"2000-01-01\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Начальные поля задачи\", () => { const b=pm.response.json(); pm.expect(b.status).to.equal(\"todo\"); pm.expect(b.reporter_id).to.equal(Number(pm.variables.get(\"anton_id\"))); pm.expect(b.assignee_id).to.equal(b.reporter_id); });",
+                  "pm.variables.set(\"task_id\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "24. Уточнить заголовок",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Уточнить заголовок",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Добавить программу докладов\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Заголовок изменён\", () => pm.expect(pm.response.json().title).to.equal(\"Добавить программу докладов\"));pm.variables.set(\"task_snapshot\", JSON.stringify(pm.response.json()));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "25. Отклонить неверную дату без частичного изменения",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Отклонить неверную дату без частичного изменения",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Не должно сохраниться\", \"due_date\": \"2030-02-30\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [400];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"invalid_value\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "26. Проверить задачу после отказа",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Проверить задачу после отказа"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Задача не изменилась\", () => pm.expect(pm.response.json()).to.deep.equal(JSON.parse(pm.variables.get(\"task_snapshot\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "27. Отклонить скачок todo → done",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/transition/",
+            "description": "Отклонить скачок todo → done",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"done\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [409];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"invalid_transition\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "28. Проверить задачу после неверного перехода",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Проверить задачу после неверного перехода"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Задача не изменилась\", () => pm.expect(pm.response.json()).to.deep.equal(JSON.parse(pm.variables.get(\"task_snapshot\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "29. Начать работу",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/transition/",
+            "description": "Начать работу",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"in_progress\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Задача в работе\", () => pm.expect(pm.response.json().status).to.equal(\"in_progress\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "30. Оставить комментарий",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/comments/",
+            "description": "Оставить комментарий",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"text\": \"Программа добавлена, можно проверять\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Автор комментария — Антон\", () => pm.expect(pm.response.json().author_id).to.equal(Number(pm.variables.get(\"anton_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "31. Отправить на проверку",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/transition/",
+            "description": "Отправить на проверку",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"review\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Задача на проверке\", () => pm.expect(pm.response.json().status).to.equal(\"review\"));pm.variables.set(\"task_snapshot\", JSON.stringify(pm.response.json()));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "32. Прочитать комментарии",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/comments/",
+            "description": "Прочитать комментарии"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Один комментарий\", () => pm.expect(pm.response.json().count).to.equal(1));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "33. Прочитать историю",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/history/",
+            "description": "Прочитать историю"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"История отражает действия, но не отказы\", () => pm.expect(pm.response.json().results.map(x=>x.kind)).to.deep.equal([\"task_created\",\"task_updated\",\"status_changed\",\"comment_added\",\"status_changed\"]));",
+                  "pm.variables.set(\"history_snapshot\", JSON.stringify(pm.response.json()));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "34. Найти задачу по сочетанию фильтров",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/tasks/?status=review&priority=high&assignee_id={{anton_id}}&q=программу&overdue=true&page=1&page_size=1",
+            "description": "Найти задачу по сочетанию фильтров"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Все фильтры применены\", () => { const b=pm.response.json(); pm.expect(b.count).to.equal(1); pm.expect(b.results).to.have.lengthOf(1); pm.expect(b.results[0].id).to.equal(Number(pm.variables.get(\"task_id\"))); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "35. Открыть страницу за пределами списка",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/tasks/?page=2&page_size=1",
+            "description": "Открыть страницу за пределами списка"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Количество сохранено, страница пуста\", () => pm.expect(pm.response.json()).to.deep.equal({count:1,results:[]}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "36. Отклонить неизвестный фильтр",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/tasks/?unknown=1",
+            "description": "Отклонить неизвестный фильтр"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [400];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"invalid_query\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "37. Прочитать сводку просроченной задачи",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/summary/",
+            "description": "Прочитать сводку просроченной задачи"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Сводка проекта\", () => pm.expect(pm.response.json()).to.deep.equal({total:1,by_status:{todo:0,in_progress:0,review:1,done:0},overdue:1}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 — Олег не получает доступ",
+      "description": "Посторонний не видит проект и не меняет задачу по известному ID.",
+      "item": [
+        {
+          "name": "38. Выйти из предыдущего аккаунта",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/logout/",
+            "description": "Выйти из предыдущего аккаунта"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Ответ без тела\", () => pm.expect(pm.response.text()).to.equal(\"\"));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "39. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "40. Войти: oleg",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login/",
+            "description": "Войти: oleg",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{oleg_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Вход нужного пользователя\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"oleg_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "41. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "42. Проверить текущего пользователя: oleg",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me/",
+            "description": "Проверить текущего пользователя: oleg"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Сессия принадлежит oleg\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"oleg_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "43. Список проектов Олега пуст",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/",
+            "description": "Список проектов Олега пуст"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Проект скрыт\", () => pm.expect(pm.response.json()).to.deep.equal({count:0,results:[]}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "44. Проект недоступен по ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/",
+            "description": "Проект недоступен по ID"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"not_found\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "45. Задача недоступна по ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Задача недоступна по ID"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"not_found\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "46. Посторонний не меняет задачу",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Посторонний не меняет задачу",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Не должно сохраниться\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"not_found\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "47. Посторонний не добавляет комментарий",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/comments/",
+            "description": "Посторонний не добавляет комментарий",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"text\": \"Не должно сохраниться\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"not_found\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 — Марина завершает и архивирует проект",
+      "description": "Сверяем неизменность данных после отказов, завершаем задачу и проверяем архив.",
+      "item": [
+        {
+          "name": "48. Выйти из предыдущего аккаунта",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/logout/",
+            "description": "Выйти из предыдущего аккаунта"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Ответ без тела\", () => pm.expect(pm.response.text()).to.equal(\"\"));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "49. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "50. Войти: marina",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login/",
+            "description": "Войти: marina",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{marina_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Вход нужного пользователя\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"marina_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "51. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "52. Проверить текущего пользователя: marina",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me/",
+            "description": "Проверить текущего пользователя: marina"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Сессия принадлежит marina\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"marina_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "53. Проверить неизменность задачи после запросов Олега",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Проверить неизменность задачи после запросов Олега"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Задача не изменилась\", () => pm.expect(pm.response.json()).to.deep.equal(JSON.parse(pm.variables.get(\"task_snapshot\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "54. Проверить неизменность истории",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/history/",
+            "description": "Проверить неизменность истории"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Отказы не оставили событий\", () => pm.expect(pm.response.json()).to.deep.equal(JSON.parse(pm.variables.get(\"history_snapshot\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "55. Завершить задачу",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/transition/",
+            "description": "Завершить задачу",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\": \"done\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Задача завершена\", () => pm.expect(pm.response.json().status).to.equal(\"done\"));pm.variables.set(\"task_snapshot\", JSON.stringify(pm.response.json()));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "56. Завершённая задача не просрочена",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/summary/",
+            "description": "Завершённая задача не просрочена"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Просрочка снята\", () => pm.expect(pm.response.json()).to.deep.equal({total:1,by_status:{todo:0,in_progress:0,review:0,done:1},overdue:0}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "57. Архивировать проект",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}/",
+            "description": "Архивировать проект",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"archived\": true}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Архив включён\", () => pm.expect(pm.response.json().archived).to.equal(true));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "58. Даже владелец не редактирует задачу в архиве",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Даже владелец не редактирует задачу в архиве",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Не должно сохраниться\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [409];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"project_archived\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "59. В архиве нельзя добавлять комментарии",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/comments/",
+            "description": "В архиве нельзя добавлять комментарии",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"text\": \"Не должно сохраниться\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [409];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"project_archived\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "60. Чтение в архиве доступно, задача не изменилась",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Чтение в архиве доступно, задача не изменилась"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Задача не изменилась\", () => pm.expect(pm.response.json()).to.deep.equal(JSON.parse(pm.variables.get(\"task_snapshot\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "61. Архив не добавил комментариев",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/comments/",
+            "description": "Архив не добавил комментариев"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Комментарий по-прежнему один\", () => pm.expect(pm.response.json().count).to.equal(1));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "62. Снять архивирование",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}/",
+            "description": "Снять архивирование",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"archived\": false}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Работа возобновлена\", () => pm.expect(pm.response.json().archived).to.equal(false));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "63. Нельзя удалить участника с назначением",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}/members/{{anton_id}}/",
+            "description": "Нельзя удалить участника с назначением"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [409];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"member_in_use\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "64. Снять назначение",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Снять назначение",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\": null}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Исполнитель снят\", () => pm.expect(pm.response.json().assignee_id).to.equal(null));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "65. Удалить Антона из проекта",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}/members/{{anton_id}}/",
+            "description": "Удалить Антона из проекта"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Ответ без тела\", () => pm.expect(pm.response.text()).to.equal(\"\"));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 — Бывший участник теряет доступ",
+      "description": "Авторство задачи не сохраняет доступ после удаления из проекта. В конце Марина удаляет учебную задачу и выходит.",
+      "item": [
+        {
+          "name": "66. Выйти из предыдущего аккаунта",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/logout/",
+            "description": "Выйти из предыдущего аккаунта"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Ответ без тела\", () => pm.expect(pm.response.text()).to.equal(\"\"));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "67. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "68. Войти: anton",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login/",
+            "description": "Войти: anton",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{anton_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Вход нужного пользователя\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"anton_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "69. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "70. Проверить текущего пользователя: anton",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me/",
+            "description": "Проверить текущего пользователя: anton"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Сессия принадлежит anton\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"anton_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "71. Бывший участник не видит созданную им задачу",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Бывший участник не видит созданную им задачу"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"not_found\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "72. Бывший участник не удаляет свою задачу",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Бывший участник не удаляет свою задачу"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"not_found\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "73. Выйти из предыдущего аккаунта",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/logout/",
+            "description": "Выйти из предыдущего аккаунта"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Ответ без тела\", () => pm.expect(pm.response.text()).to.equal(\"\"));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "74. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "75. Войти: marina",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/login/",
+            "description": "Войти: marina",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"{{marina_username}}\", \"password\": \"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Вход нужного пользователя\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"marina_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "76. Получить CSRF-токен",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/csrf/",
+            "description": "Получить CSRF-токен"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"CSRF-токен получен\", () => pm.expect(pm.response.json().csrfToken).to.be.a(\"string\").and.not.empty);",
+                  "pm.variables.set(\"csrf\", pm.response.json().csrfToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "77. Проверить текущего пользователя: marina",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me/",
+            "description": "Проверить текущего пользователя: marina"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Сессия принадлежит marina\", () => pm.expect(pm.response.json().id).to.equal(Number(pm.variables.get(\"marina_id\"))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "78. Владелец удаляет задачу",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Владелец удаляет задачу"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Ответ без тела\", () => pm.expect(pm.response.text()).to.equal(\"\"));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "79. Удалённая задача недоступна",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/tasks/{{task_id}}/",
+            "description": "Удалённая задача недоступна"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [404];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"not_found\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "80. В пустой сводке все статусы равны нулю",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/projects/{{project_id}}/summary/",
+            "description": "В пустой сводке все статусы равны нулю"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [200];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Пустая сводка\", () => pm.expect(pm.response.json()).to.deep.equal({total:0,by_status:{todo:0,in_progress:0,review:0,done:0},overdue:0}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "81. Выйти из аккаунта",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRFToken",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/logout/",
+            "description": "Выйти из аккаунта"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [204];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Ответ без тела\", () => pm.expect(pm.response.text()).to.equal(\"\"));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "82. Сессия завершена",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me/",
+            "description": "Сессия завершена"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [401];",
+                  "pm.test(\"Ожидаемый HTTP-статус\", () => pm.expect(expected).to.include(pm.response.code));",
+                  "if (!expected.includes(pm.response.code)) {",
+                  "    pm.execution.setNextRequest(null);",
+                  "} else {",
+                  "pm.test(\"Код ошибки\", () => pm.expect(pm.response.json()).to.deep.equal({\"error\": \"authentication_required\"}));",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
